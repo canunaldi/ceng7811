@@ -66,6 +66,13 @@ LABEL_ORDER = [
 MINORITY_START_IDX = 14   # 0-indexed; LABEL_ORDER[14] = "kidnapping" = class 15
 NUM_LABELS = len(LABEL_ORDER)  # 32
 
+# ── RoBERTa fine-tuning subset ─────────────────────────────────────────────────
+# Fine-tune on a random fraction of train documents to reduce compute.
+# 1.0 = all 307k docs (~3M segments, needs dedicated GPU)
+# 0.03 = ~9k docs (~90k segments, ~30-45 min on MPS)
+ROBERTA_SUBSET_FRAC = 0.03
+ROBERTA_SUBSET_SEED = 42   # for reproducibility
+
 # Ensure output dirs exist when config is imported
 for _d in [ROBERTA_CKPT_DIR, LSTM_CKPT_DIR, EMBED_DIR]:
     Path(_d).mkdir(parents=True, exist_ok=True)

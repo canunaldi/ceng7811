@@ -67,8 +67,14 @@ def main():
     print("Loading tokenizer …")
     tokenizer = RobertaTokenizerFast.from_pretrained(config.ROBERTA_MODEL)
 
-    print("Building SegmentDataset (train) — this may take a few minutes …")
-    dataset = SegmentDataset(config.DATA_PATH, tokenizer, split="train")
+    print(f"Building SegmentDataset (train, subset_frac={config.ROBERTA_SUBSET_FRAC}) — this may take a few minutes …")
+    dataset = SegmentDataset(
+        config.DATA_PATH,
+        tokenizer,
+        split="train",
+        subset_frac=config.ROBERTA_SUBSET_FRAC,
+        subset_seed=config.ROBERTA_SUBSET_SEED,
+    )
     loader  = DataLoader(
         dataset,
         batch_size=config.ROBERTA_BATCH,

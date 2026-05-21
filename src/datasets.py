@@ -46,12 +46,23 @@ class SegmentDataset(Dataset):
     full 32-dim binary label vector (paper §4.1, §4.2).
     """
 
-    def __init__(self, jsonl_path: str, tokenizer: RobertaTokenizerFast, split: str = "train"):
+    def __init__(
+        self,
+        jsonl_path: str,
+        tokenizer: RobertaTokenizerFast,
+        split: str = "train",
+        subset_frac: float = 1.0,
+        subset_seed: int = 42,
+    ):
         self._tokenizer = tokenizer
         self._label_index = _build_label_index(LABEL_ORDER)
         self._items: List[Tuple[Dict, torch.Tensor]] = []
 
-        unmapped: set = set()
+        # Load all records for this split first
+        import random
+        rng = random.Random(subset_seed)
+
+        split_records = []
         with open(jsonl_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -63,21 +74,33 @@ class SegmentDataset(Dataset):
                 raw_labels: List[str] = rec.get("level2_labels", [])
                 if not raw_labels and split != "test":
                     continue
+                split_records.append(rec)
 
-                # Track unmapped labels for debugging
-                for lbl in raw_labels:
-                    if lbl not in self._label_index:
-                        fuzzy_matched = any(
-                            lbl.replace("-", "") == c.replace("-", "")
-                            for c in self._label_index
-                        )
-                        if not fuzzy_matched:
-                            unmapped.add(lbl)
+        # Sample a random subset of documents (document-level, preserves label distribution)
+        if 0.0 < subset_frac < 1.0:
+            n_keep = max(1, int(len(split_records) * subset_frac))
+            rng.shuffle(split_records)
+            split_records = split_records[:n_keep]
+            print(f"[SegmentDataset/{split}] subset_frac={subset_frac} → {n_keep:,}/{len(split_records):,} docs sampled")
 
-                label_vec = _labels_to_vector(raw_labels, self._label_index)
-                cleaned = clean_text(rec["text"])
-                for seg in segment_text(cleaned, SEGMENT_SIZE, SEGMENT_OVERLAP):
-                    self._items.append((seg, label_vec))
+        unmapped: set = set()
+        for rec in split_records:
+            raw_labels = rec.get("level2_labels", [])
+
+            # Track unmapped labels for debugging
+            for lbl in raw_labels:
+                if lbl not in self._label_index:
+                    fuzzy_matched = any(
+                        lbl.replace("-", "") == c.replace("-", "")
+                        for c in self._label_index
+                    )
+                    if not fuzzy_matched:
+                        unmapped.add(lbl)
+
+            label_vec = _labels_to_vector(raw_labels, self._label_index)
+            cleaned = clean_text(rec["text"])
+            for seg in segment_text(cleaned, SEGMENT_SIZE, SEGMENT_OVERLAP):
+                self._items.append((seg, label_vec))
 
         if unmapped:
             print(f"[SegmentDataset/{split}] WARNING: unmapped labels: {unmapped}")
