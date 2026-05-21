@@ -1,0 +1,41 @@
+PAN23 Trigger Detection preprocessing stats
+==================================================
+Total rows after preprocessing: 341159
+Rows removed by length filtering: 52
+
+Split counts:
+  train: 307021
+  validation: 17099
+  test: 17039
+
+Average word count: 2395.30
+Median word count: 2122.00
+Average number of level2 labels: 1.45
+Average number of level1 labels: 1.28
+
+Top 15 level2 labels:
+  pornographic-content: 251265
+  sexual-assault: 33060
+  violence: 30723
+  abuse: 23410
+  death: 21936
+  blood: 15937
+  pregnancy: 14404
+  incest: 14239
+  underage: 9398
+  suicide: 8661
+  dying: 7913
+  child-abuse: 7578
+  self-harm: 5530
+  homophobia: 5219
+  kidnapping: 4730
+
+Top 15 level1 labels:
+  Other Sensitive Content: 270671
+  Violence & Physical Harm: 44509
+  Sexual Content / Sexual Violence: 33060
+  Abuse & Interpersonal Harm: 23617
+  Death / Loss: 21936
+  Mental Health & Self-Harm: 13210
+  Discrimination & Hate: 6580
+  Animals: 353

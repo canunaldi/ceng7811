@@ -1,3 +1,10 @@
 embeddings/
 models/
 pan23-trigger-detection/
+.venv/
+__pycache__/
+
+
+pan23-trigger-detection.zip
+pan23_hierarchical_preprocessed.jsonl
+pan23_hierarchical_preprocessed.csv

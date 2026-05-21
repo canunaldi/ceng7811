@@ -1,0 +1,9 @@
+torch
+transformers
+scikit-learn
+nltk
+beautifulsoup4
+tqdm
+pandas
+numpy
+gradio
