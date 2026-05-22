@@ -12,10 +12,22 @@ Training:
   - Positive class weight (neg_count / pos_count) applied for classes 15–32
   - Up to 10 epochs; checkpoint saved when validation binary-F1 improves
 
-Usage:
+Usage (full run):
     python step4_train_lstm.py
+
+Usage (grouped, for limited-session environments like Colab):
+    python step4_train_lstm.py --start 0  --end 8    # group 1: labels 1-8
+    python step4_train_lstm.py --start 8  --end 16   # group 2: labels 9-16
+    python step4_train_lstm.py --start 16 --end 24   # group 3: labels 17-24
+    python step4_train_lstm.py --start 24 --end 32   # group 4: labels 25-32
+
+Optional epoch override:
+    python step4_train_lstm.py --start 0 --end 8 --epochs 5
+
+Checkpoints are saved per-label, so completed groups survive disconnections.
 """
 
+import argparse
 from pathlib import Path
 
 import torch
@@ -112,9 +124,23 @@ def compute_pos_weight(train_dataset: EmbeddingSequenceDataset, label_idx: int) 
     return neg / pos
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description="Train LSTM classifiers for trigger detection.")
+    parser.add_argument("--start",  type=int, default=0,                   help="First label index (inclusive, 0-based). Default: 0")
+    parser.add_argument("--end",    type=int, default=config.NUM_LABELS,   help=f"Last label index (exclusive, 0-based). Default: {config.NUM_LABELS}")
+    parser.add_argument("--epochs", type=int, default=config.LSTM_EPOCHS,  help=f"Max epochs per classifier. Default: {config.LSTM_EPOCHS}")
+    return parser.parse_args()
+
+
 def main():
+    args   = parse_args()
+    start  = max(0, args.start)
+    end    = min(config.NUM_LABELS, args.end)
+    epochs = args.epochs
+
     device = get_device()
     print(f"Device: {device}")
+    print(f"Training labels [{start}, {end}) — {end - start} classifiers, {epochs} epochs each")
 
     print("Loading embedding datasets …")
     train_ds = EmbeddingSequenceDataset(f"{config.EMBED_DIR}/train.pt")
@@ -138,8 +164,15 @@ def main():
     ckpt_dir = Path(config.LSTM_CKPT_DIR)
     ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    for label_idx, label_name in enumerate(config.LABEL_ORDER):
+    label_slice = list(enumerate(config.LABEL_ORDER))[start:end]
+
+    for label_idx, label_name in label_slice:
         print(f"\n[{label_idx+1:02d}/32] {label_name}")
+
+        ckpt_path = ckpt_dir / f"{label_idx:02d}_{label_name}.pt"
+        if ckpt_path.exists():
+            print(f"  checkpoint already exists — skipping (delete to retrain)")
+            continue
 
         # Positive class weight for minority classes (classes 15–32, 0-indexed 14–31)
         if label_idx >= config.MINORITY_START_IDX:
@@ -152,13 +185,12 @@ def main():
         model     = LSTMClassifier(config.EMBED_DIM, config.LSTM_HIDDEN).to(device)
         optimizer = torch.optim.SGD(model.parameters(), lr=config.LSTM_LR)
 
-        best_f1   = 0.0
-        ckpt_path = ckpt_dir / f"{label_idx:02d}_{label_name}.pt"
+        best_f1 = 0.0
 
-        for epoch in range(1, config.LSTM_EPOCHS + 1):
+        for epoch in range(1, epochs + 1):
             avg_loss = train_epoch(model, train_loader, optimizer, loss_fn, label_idx, device)
             val_f1   = evaluate(model, val_loader, label_idx, device)
-            print(f"  epoch {epoch:2d}/{config.LSTM_EPOCHS}  loss={avg_loss:.4f}  val_f1={val_f1:.4f}", end="")
+            print(f"  epoch {epoch:2d}/{epochs}  loss={avg_loss:.4f}  val_f1={val_f1:.4f}", end="")
 
             if val_f1 > best_f1:
                 best_f1 = val_f1
@@ -168,7 +200,8 @@ def main():
 
         print(f"  best val F1 = {best_f1:.4f}  →  {ckpt_path.name}")
 
-    print("\nAll 32 classifiers trained.")
+    total_ckpts = len(list(ckpt_dir.glob("*.pt")))
+    print(f"\nGroup [{start}, {end}) complete. Total checkpoints saved: {total_ckpts}/32")
 
 
 if __name__ == "__main__":
