@@ -17,9 +17,13 @@ Each file is a List[dict] where every dict has:
   {"doc_id": str, "embeddings": Tensor[n_segs, 768], "label": Tensor[32]}
 
 Usage:
-    python step3_extract_embeddings.py
+    python step3_extract_embeddings.py                # all splits
+    python step3_extract_embeddings.py --split val    # validation only
+    python step3_extract_embeddings.py --split train
+    python step3_extract_embeddings.py --split test
 """
 
+import argparse
 import json
 from pathlib import Path
 from typing import Dict, List
@@ -124,8 +128,26 @@ def process_split(
 
 
 def main():
+    # Maps short flag names → (jsonl split name, output filename)
+    split_map = {
+        "train": ("train",      "train"),
+        "val":   ("validation", "val"),
+        "test":  ("test",       "test"),
+    }
+
+    parser = argparse.ArgumentParser(description="Extract RoBERTa CLS embeddings.")
+    parser.add_argument(
+        "--split",
+        choices=list(split_map.keys()),
+        default=None,
+        help="Which split to extract. Omit to run all three.",
+    )
+    args = parser.parse_args()
+
+    to_run = [args.split] if args.split else list(split_map.keys())
+
     device = get_device()
-    print(f"Device: {device}")
+    print(f"Device: {device}  |  splits to extract: {to_run}")
 
     print("Loading fine-tuned RoBERTa encoder …")
     encoder   = RobertaModel.from_pretrained(config.ROBERTA_CKPT_DIR).to(device).eval()
@@ -133,9 +155,10 @@ def main():
 
     label_index = _build_label_index(config.LABEL_ORDER)
 
-    for split in ["train", "val", "test"]:
-        records   = process_split(split, config.DATA_PATH, encoder, tokenizer, label_index, device)
-        out_path  = Path(config.EMBED_DIR) / f"{split}.pt"
+    for split_key in to_run:
+        jsonl_split, file_split = split_map[split_key]
+        records  = process_split(jsonl_split, config.DATA_PATH, encoder, tokenizer, label_index, device)
+        out_path = Path(config.EMBED_DIR) / f"{file_split}.pt"
         torch.save(records, str(out_path))
         print(f"  Saved {len(records):,} docs → {out_path}")
 
